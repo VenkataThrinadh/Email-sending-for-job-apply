@@ -2,7 +2,7 @@
 
 > **Skill Test Submission** — Email Marketing Engineer (Infrastructure-Focused)
 
-A production-grade, high-volume outbound email POC built with Node.js, BullMQ, MySQL, Redis, and React. Implements all six required infrastructure components: email pipeline, queueing, domain/IP rotation, personalization, bounce handling, and reputation management.
+A production-grade, high-volume outbound email POC built with Node.js, BullMQ, Prisma, MySQL, Redis, and React. Implements all six required infrastructure components: email pipeline, queueing, domain/IP rotation, personalization, bounce handling, and reputation management.
 
 ---
 
@@ -29,17 +29,17 @@ A production-grade, high-volume outbound email POC built with Node.js, BullMQ, M
 │                    Express API Server (Node.js)                     │
 │  /campaign/create  /queue/*  /domains/*  /logs/*  /webhook/*        │
 └────────┬────────────────────────────────────────┬───────────────────┘
-         │ INSERT recipients                       │ READ/WRITE
-         │ ADD jobs to queue                       ▼
-         ▼                              ┌──────────────────┐
+         │ INSERT recipients                       │ READ/WRITE via
+         │ ADD jobs to queue                       │ Prisma ORM
+         ▼                              ┌──────────▼───────┐
 ┌─────────────────┐                    │  MySQL Database  │
 │  BullMQ Queue   │◄── Redis ──────────│  users           │
 │  (email-queue)  │                    │  campaigns       │
 └────────┬────────┘                    │  recipients      │
          │ process job                 │  logs            │
          ▼                             │  domains         │
-┌─────────────────────────────────────│  suppression_list│
-│         Email Worker Process        │  email_stats     │
+┌─────────────────────────────────────│  suppressionList │
+│         Email Worker Process        │  emailStats      │
 │                                     └──────────────────┘
 │  1. Rate limit check (N emails/min)
 │  2. Personalize subject + body  {{name}}, {{email}}, etc.
@@ -55,7 +55,7 @@ A production-grade, high-volume outbound email POC built with Node.js, BullMQ, M
 │                                                                     │
 │  Bounce  ──► Update recipient + log ──► Hard bounce? Auto-suppress  │
 │  Complaint ► Update recipient + log ──► Auto-suppress + reduce rep  │
-│  Open ─────► Update opened_at + email_stats                         │
+│  Open ─────► Update openedAt + emailStats                           │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,7 +80,8 @@ A production-grade, high-volume outbound email POC built with Node.js, BullMQ, M
 
 **Backend**
 - Node.js + Express
-- MySQL (mysql2 with connection pooling)
+- Prisma ORM (Type-safe database interactions)
+- MySQL
 - Redis (ioredis)
 - BullMQ (job queue + worker)
 - Nodemailer (SMTP email sending)
@@ -93,56 +94,45 @@ A production-grade, high-volume outbound email POC built with Node.js, BullMQ, M
 - Recharts (analytics charts)
 - Lucide React (icons)
 - React Hot Toast (notifications)
-- Axios (HTTP client with JWT interceptors)
+- Axios (HTTP client encapsulated in a service layer)
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 interview-test/
 ├── backend/
-│   ├── app.js                    # Express app setup
-│   ├── server.js                 # Entry point
-│   ├── config/
-│   │   ├── database.js           # MySQL connection pool
-│   │   └── redis.js              # Redis connection (ioredis)
-│   ├── controllers/
-│   │   ├── authController.js     # Register, login, JWT
-│   │   ├── campaignController.js # Campaign CRUD + CSV parse + queue push
-│   │   ├── domainController.js   # Domain/IP pool management + rotation
-│   │   ├── logController.js      # Bounces, suppression, reputation, analytics
-│   │   ├── queueController.js    # BullMQ queue management
-│   │   └── webhookController.js  # AWS SES / SendGrid webhook handler
-│   ├── models/index.js           # Auto-creates all DB tables
-│   ├── queue/emailQueue.js       # BullMQ Queue definition
-│   ├── workers/emailWorker.js    # BullMQ Worker — email processor
-│   ├── services/
-│   │   ├── emailService.js       # Nodemailer SMTP sender
-│   │   └── personalizationService.js  # {{variable}} template engine
-│   ├── middleware/
-│   │   ├── auth.js               # JWT middleware
-│   │   └── errorHandler.js       # Global error handler
-│   └── utils/csvParser.js        # CSV → recipients array
+│   ├── prisma/
+│   │   └── schema.prisma         # Prisma schema + DB models
+│   ├── src/
+│   │   ├── app.js                # Express app setup
+│   │   ├── server.js             # Entry point
+│   │   ├── config/               
+│   │   │   └── redis.js          # Redis connection (ioredis)
+│   │   ├── controllers/          # Route handlers using Prisma
+│   │   ├── lib/                  
+│   │   │   └── prisma.js         # Singleton Prisma client instance
+│   │   ├── middleware/           # Auth and error handling
+│   │   ├── queue/                # BullMQ Queue definition
+│   │   ├── routes/               # Express routing
+│   │   ├── services/             # Nodemailer and Personalization logic
+│   │   ├── utils/                # CSV Parsing
+│   │   └── workers/              # BullMQ worker process (emailWorker.js)
+│   └── package.json
 ├── frontend/
-│   └── src/
-│       ├── pages/
-│       │   ├── Dashboard.jsx     # KPI cards, line chart, pie chart
-│       │   ├── Campaigns.jsx     # Campaign list + status badges
-│       │   ├── CampaignDetail.jsx # Recipients table, progress bars, preview
-│       │   ├── CreateCampaign.jsx # Form + CSV upload + live email preview
-│       │   ├── Queue.jsx         # BullMQ stats, pause/resume/retry/flush
-│       │   ├── Domains.jsx       # Domain pool CRUD + reputation bars
-│       │   ├── Bounces.jsx       # Bounce events + suppression list
-│       │   ├── Reputation.jsx    # Score gauge, inbox/spam pie, trend chart
-│       │   └── Personalization.jsx # Template variable tester
-│       └── components/
-│           ├── Sidebar.jsx
-│           ├── TopBar.jsx
-│           └── StatCard.jsx
-├── database/schema.sql           # Full MySQL schema
-├── sample_recipients.csv         # Sample CSV to test with
-└── SETUP_GUIDE.md
+│   ├── src/
+│   │   ├── components/           # Reusable UI components
+│   │   ├── context/              # React Context (Auth, Theme)
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── layouts/              # Main layout shells
+│   │   ├── pages/                # Page views
+│   │   ├── routes/               # Centralized React Router configuration
+│   │   ├── services/             # API services layer (Axios)
+│   │   └── utils/                # Frontend utilities
+│   ├── index.html
+│   └── package.json
+└── README.md
 ```
 
 ---
@@ -152,7 +142,7 @@ interview-test/
 ### Prerequisites
 - Node.js 18+
 - MySQL 8+
-- Redis (Docker or native)
+- Redis 5.0+ (Docker or native)
 
 ### 1. Clone & Install
 ```bash
@@ -166,17 +156,18 @@ cd backend && npm install
 cd ../frontend && npm install
 ```
 
-### 2. Database Setup
-```bash
-# In MySQL Workbench or CLI
-mysql -u root -p < database/schema.sql
-```
-
-### 3. Configure Environment
+### 2. Configure Environment
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env with your MySQL password, SMTP credentials, JWT secret
+# Edit .env with your MySQL credentials, DATABASE_URL, SMTP credentials, and JWT secret.
+```
+
+### 3. Database Setup (Prisma)
+Because the project uses Prisma ORM, you don't need a manual `.sql` script. Just run:
+```bash
+npx prisma db push --force-reset
+npx prisma generate
 ```
 
 ### 4. Start Redis
@@ -219,6 +210,7 @@ DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=email_marketing
+DATABASE_URL="mysql://root:your_password@localhost:3306/email_marketing"
 
 # JWT
 JWT_SECRET=your_secret_key
@@ -267,18 +259,6 @@ jane@example.com,Jane,https://example.com,Beta Ltd
 ```
 
 Any column in the CSV can be used as a `{{variable}}` in the email subject or body.
-
----
-
-## 🖼️ Screenshots
-
-| Dashboard | Campaigns | Create Campaign |
-|---|---|---|
-| KPI cards + 30-day chart | Campaign list with status | CSV upload + live preview |
-
-| Queue Monitor | Reputation | Bounces |
-|---|---|---|
-| Pause/resume/retry | Sender score gauge | Suppression list |
 
 ---
 

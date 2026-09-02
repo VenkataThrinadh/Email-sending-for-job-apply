@@ -30,10 +30,10 @@ const getTransporter = () => {
 
 /**
  * Send a single email
- * @param {Object} options - { to, subject, html, text, fromName, fromEmail, domain }
+ * @param {Object} options - { to, subject, html, text, fromName, fromEmail, domain, attachmentPath, attachmentName }
  */
 const sendEmail = async (options) => {
-  const { to, subject, html, text, fromName, fromEmail } = options;
+  const { to, subject, html, text, fromName, fromEmail, attachmentPath, attachmentName } = options;
 
   const transporter = getTransporter();
 
@@ -48,6 +48,15 @@ const sendEmail = async (options) => {
       'List-Unsubscribe': `<mailto:unsubscribe@${process.env.SMTP_FROM_EMAIL?.split('@')[1] || 'example.com'}>`,
     },
   };
+
+  if (attachmentPath) {
+    mailOptions.attachments = [
+      {
+        filename: attachmentName || 'attachment',
+        path: attachmentPath
+      }
+    ];
+  }
 
   const info = await transporter.sendMail(mailOptions);
   return { messageId: info.messageId, response: info.response };

@@ -45,6 +45,8 @@ model Campaign {
   sentCount       Int            @default(0) @map("sent_count")
   failedCount     Int            @default(0) @map("failed_count")
   openCount       Int            @default(0) @map("open_count")
+  attachmentPath  String?        @db.VarChar(500) @map("attachment_path")
+  attachmentName  String?        @db.VarChar(255) @map("attachment_name")
   scheduledAt     DateTime?      @map("scheduled_at")
   sentAt          DateTime?      @map("sent_at")
   createdAt       DateTime       @default(now()) @map("created_at")

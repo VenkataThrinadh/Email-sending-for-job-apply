@@ -10,17 +10,20 @@ const { authMiddleware } = require('../middleware/auth');
 // Multer v2 compatible storage — use OS temp dir
 const upload = multer({
   dest: path.join(os.tmpdir()),           // OS temp dir (works on all platforms)
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max (larger for attachments)
   fileFilter: (_req, file, cb) => {
-    const ok = file.mimetype === 'text/csv'
-      || file.originalname.toLowerCase().endsWith('.csv');
-    cb(ok ? null : new Error('Only CSV files allowed'), ok);
+    if (file.fieldname === 'csv') {
+      const ok = file.mimetype === 'text/csv' || file.originalname.toLowerCase().endsWith('.csv');
+      cb(ok ? null : new Error('Only CSV files allowed for recipients'), ok);
+    } else {
+      cb(null, true); // Allow all other files for attachments (PDF, DOCX, etc.)
+    }
   },
 });
 
 router.use(authMiddleware);
 
-router.post('/create', upload.single('csv'), createCampaign);
+router.post('/create', upload.fields([{ name: 'csv', maxCount: 1 }, { name: 'attachment', maxCount: 1 }]), createCampaign);
 router.get('/list', listCampaigns);
 router.get('/:id', getCampaign);
 router.delete('/:id', deleteCampaign);

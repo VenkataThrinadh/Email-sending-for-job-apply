@@ -150,7 +150,7 @@ export default function Queue() {
               </thead>
               <tbody>
                 {jobs.map((j, i) => (
-                  <tr key={j.id || i}>
+                  <tr key={`${j.id || 'job'}-${i}`}>
                     <td className="font-medium">{j.email}</td>
                     <td className="text-slate-500 dark:text-slate-400">{j.campaign_name || j.campaignId || '—'}</td>
                     <td>{statusBadge(j.bullState || j.status)}</td>

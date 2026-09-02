@@ -3,12 +3,17 @@ const prisma = require('../lib/prisma');
 const { emailQueue } = require('../queue/emailQueue');
 const csvParser = require('../utils/csvParser');
 const fs = require('fs');
+const path = require('path');
 
 // ─── POST /api/campaign/create ────────────────────────────────────
 const createCampaign = async (req, res, next) => {
   try {
     const { name, subject, body, scheduledAt } = req.body;
     const userId = req.user.id;
+    
+    // Fetch user to get their name for the 'from' field
+    const userRecord = await prisma.user.findUnique({ where: { id: userId } });
+    const senderName = userRecord ? userRecord.name : null;
 
     if (!name || !subject || !body) {
       return res.status(400).json({ success: false, message: 'Name, subject, and body are required.' });
@@ -16,11 +21,13 @@ const createCampaign = async (req, res, next) => {
 
     // Parse CSV if uploaded
     let recipients = [];
-    if (req.file) {
+    const csvFile = req.files && req.files.csv ? req.files.csv[0] : null;
+    
+    if (csvFile) {
       try {
-        recipients = await csvParser.parseCSVFile(req.file.path);
-        // Clean up uploaded file
-        fs.unlinkSync(req.file.path);
+        recipients = await csvParser.parseCSVFile(csvFile.path);
+        // Clean up uploaded csv file
+        fs.unlinkSync(csvFile.path);
       } catch (csvErr) {
         return res.status(400).json({ success: false, message: 'CSV parse error: ' + csvErr.message });
       }
@@ -28,6 +35,25 @@ const createCampaign = async (req, res, next) => {
 
     if (recipients.length === 0) {
       return res.status(400).json({ success: false, message: 'CSV must contain at least one recipient.' });
+    }
+
+    // Handle Attachment
+    let attachmentPath = null;
+    let attachmentName = null;
+    const attachmentFile = req.files && req.files.attachment ? req.files.attachment[0] : null;
+    
+    if (attachmentFile) {
+      const uploadsDir = path.join(__dirname, '../../uploads/attachments');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      // Copy the attachment file from tmp to uploads directory (handles cross-device moves)
+      attachmentName = attachmentFile.originalname;
+      const newPath = path.join(uploadsDir, `${Date.now()}-${attachmentName}`);
+      fs.copyFileSync(attachmentFile.path, newPath);
+      fs.unlinkSync(attachmentFile.path);
+      attachmentPath = newPath;
     }
 
     const status = scheduledAt ? 'draft' : 'queued';
@@ -50,6 +76,8 @@ const createCampaign = async (req, res, next) => {
           body,
           status,
           totalRecipients: validRecipients.length,
+          attachmentPath,
+          attachmentName,
           scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
           recipients: {
             create: validRecipients.map(r => ({
@@ -79,7 +107,10 @@ const createCampaign = async (req, res, next) => {
             name: recipient.name,
             subject,
             body,
+            attachmentPath,
+            attachmentName,
             variables: recipient.variables || {},
+            senderName,
           },
           {
             attempts: parseInt(process.env.MAX_RETRIES) || 3,

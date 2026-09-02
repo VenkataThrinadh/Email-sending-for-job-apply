@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, RefreshCw, Send, CheckCircle, XCircle,
-  Clock, AlertCircle, Users, Mail, Calendar, TrendingUp
+  Clock, AlertCircle, Users, Mail, Calendar, TrendingUp, Paperclip
 } from 'lucide-react'
 import api from '../services/axios'
 import toast from 'react-hot-toast'
@@ -158,6 +158,7 @@ export default function CampaignDetail() {
             { icon: Calendar, label: 'Sent At',       value: campaign.sent_at ? new Date(campaign.sent_at).toLocaleString() : '—' },
             { icon: Users,    label: 'Campaign ID',   value: `#${campaign.id}` },
             { icon: TrendingUp, label: 'Open Rate',   value: `${openPct}%` },
+            ...(campaign.attachment_name ? [{ icon: Paperclip, label: 'Attachment', value: campaign.attachment_name }] : [])
           ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="flex items-start gap-3">
               <Icon className="w-4 h-4 text-brand-500 mt-0.5 flex-shrink-0" />

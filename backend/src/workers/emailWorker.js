@@ -1,5 +1,5 @@
 // workers/emailWorker.js - BullMQ worker that processes email send jobs
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
 const { Worker } = require('bullmq');
 const redisConnection = require('../config/redis');
@@ -25,7 +25,7 @@ minuteTimer = setInterval(resetCounter, 60000);
 
 // ─── Worker Processor ─────────────────────────────────────────────
 const processEmailJob = async (job) => {
-  const { campaignId, recipientId, email, name, subject, body, variables } = job.data;
+  const { campaignId, recipientId, email, name, subject, body, attachmentPath, attachmentName, variables, senderName } = job.data;
 
   console.log(`📧 Processing job ${job.id}: sending to ${email}`);
 
@@ -50,6 +50,9 @@ const processEmailJob = async (job) => {
       to: email,
       subject: personalizedSubject,
       html: personalizedBody,
+      attachmentPath,
+      attachmentName,
+      fromName: senderName
     });
 
     emailsSentThisMinute++;

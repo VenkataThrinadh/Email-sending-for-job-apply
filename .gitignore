@@ -16,6 +16,8 @@ build/
 # Uploads / temp
 backend/temp/*
 !backend/temp/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Logs
 *.log

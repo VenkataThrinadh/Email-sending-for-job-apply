@@ -31,6 +31,7 @@ export default function CreateCampaign() {
     scheduledAt: '',
   })
   const [csvFile, setCsvFile] = useState(null)
+  const [attachmentFile, setAttachmentFile] = useState(null)
   const [csvPreview, setCsvPreview] = useState([])
   const [previewing, setPreviewing] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -54,6 +55,11 @@ export default function CreateCampaign() {
     reader.readAsText(file)
   }
 
+  const handleAttachment = (e) => {
+    const file = e.target.files[0]
+    if (file) setAttachmentFile(file)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!csvFile) { toast.error('Please upload a CSV file with recipients.'); return }
@@ -62,9 +68,10 @@ export default function CreateCampaign() {
       const fd = new FormData()
       fd.append('name', form.name)
       fd.append('subject', form.subject)
-      fd.append('body', form.body)
+      fd.append('body', processBody(form.body))
       if (form.scheduledAt) fd.append('scheduledAt', form.scheduledAt)
       fd.append('csv', csvFile)
+      if (attachmentFile) fd.append('attachment', attachmentFile)
 
       const { data } = await api.post('/campaign/create', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -78,9 +85,17 @@ export default function CreateCampaign() {
     }
   }
 
+  // Auto-format plain text to HTML if no HTML tags are present
+  const processBody = (text) => {
+    if (!text.includes('<') && !text.includes('>')) {
+      return text.replace(/\n/g, '<br/>')
+    }
+    return text
+  }
+
   // Live preview using first CSV row
-  const previewData = csvPreview[0] || { name: 'John', email: 'john@example.com', link: '#' }
-  const previewBody = personalize(form.body, previewData)
+  const previewData = csvPreview[0] || {}
+  const previewBody = personalize(processBody(form.body), previewData)
   const previewSubject = personalize(form.subject, previewData)
 
   return (
@@ -104,8 +119,12 @@ export default function CreateCampaign() {
             </div>
             <div>
               <label className="label">Subject Line</label>
-              <input className="input" placeholder="Hi {{name}}, special offer!" value={form.subject} onChange={set('subject')} required />
-              <p className="mt-1 text-xs text-slate-400">Use {'{{name}}'} for personalization tags</p>
+              <input className="input" placeholder="e.g. Application for {{role}}" value={form.subject} onChange={set('subject')} required />
+              <p className="mt-1 text-xs text-slate-400">
+                {csvPreview.length > 0 
+                  ? `Available variables: ${Object.keys(csvPreview[0]).map(k => `{{${k}}}`).join(', ')}`
+                  : `Upload a CSV to see available {{variables}}`}
+              </p>
             </div>
             <div>
               <label className="label">Schedule (optional)</label>
@@ -165,6 +184,19 @@ export default function CreateCampaign() {
               </div>
             )}
           </div>
+
+          {/* Attachment Upload */}
+          <div className="card p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Resume / Attachment (Optional)</h3>
+            <label className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/30 transition-all">
+              <Upload className="w-6 h-6 mb-2 text-slate-400" />
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                {attachmentFile ? attachmentFile.name : 'Click to upload attachment'}
+              </p>
+              <input type="file" className="hidden" onChange={handleAttachment} />
+            </label>
+            <p className="text-xs text-slate-400">This file will be attached to every email sent in this campaign.</p>
+          </div>
         </div>
 
         {/* Right: HTML Editor + Preview */}
@@ -203,7 +235,9 @@ export default function CreateCampaign() {
               />
             )}
             <p className="text-xs text-slate-400">
-              Use {'{{name}}'}, {'{{email}}'}, or any CSV column as a variable
+              {csvPreview.length > 0 
+                ? `Available variables: ${Object.keys(csvPreview[0]).map(k => `{{${k}}}`).join(', ')}`
+                : `Upload a CSV to see available {{variables}}`}
             </p>
           </div>
 

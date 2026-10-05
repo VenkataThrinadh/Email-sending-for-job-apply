@@ -7,6 +7,9 @@ const path = require('path');
 
 // ─── POST /api/campaign/create ────────────────────────────────────
 const createCampaign = async (req, res, next) => {
+  const csvFile = req.files && req.files.csv ? req.files.csv[0] : null;
+  const attachmentFile = req.files && req.files.attachment ? req.files.attachment[0] : null;
+
   try {
     const { name, subject, body, scheduledAt } = req.body;
     const userId = req.user.id;
@@ -21,15 +24,15 @@ const createCampaign = async (req, res, next) => {
 
     // Parse CSV if uploaded
     let recipients = [];
-    const csvFile = req.files && req.files.csv ? req.files.csv[0] : null;
-    
     if (csvFile) {
       try {
         recipients = await csvParser.parseCSVFile(csvFile.path);
-        // Clean up uploaded csv file
-        fs.unlinkSync(csvFile.path);
       } catch (csvErr) {
         return res.status(400).json({ success: false, message: 'CSV parse error: ' + csvErr.message });
+      } finally {
+        if (fs.existsSync(csvFile.path)) {
+          try { fs.unlinkSync(csvFile.path); } catch (_) {}
+        }
       }
     }
 
@@ -40,8 +43,6 @@ const createCampaign = async (req, res, next) => {
     // Handle Attachment
     let attachmentPath = null;
     let attachmentName = null;
-    const attachmentFile = req.files && req.files.attachment ? req.files.attachment[0] : null;
-    
     if (attachmentFile) {
       const uploadsDir = path.join(__dirname, '../../uploads/attachments');
       if (!fs.existsSync(uploadsDir)) {
@@ -52,7 +53,7 @@ const createCampaign = async (req, res, next) => {
       attachmentName = attachmentFile.originalname;
       const newPath = path.join(uploadsDir, `${Date.now()}-${attachmentName}`);
       fs.copyFileSync(attachmentFile.path, newPath);
-      fs.unlinkSync(attachmentFile.path);
+      try { fs.unlinkSync(attachmentFile.path); } catch (_) {}
       attachmentPath = newPath;
     }
 
@@ -66,60 +67,64 @@ const createCampaign = async (req, res, next) => {
 
     const validRecipients = recipients.filter(r => r.email && !suppressedEmails.has(r.email.toLowerCase().trim()));
 
-    // Transaction for campaign and recipients
-    const campaign = await prisma.$transaction(async (tx) => {
-      const createdCampaign = await tx.campaign.create({
-        data: {
-          userId,
-          name,
-          subject,
-          body,
-          status,
-          totalRecipients: validRecipients.length,
-          attachmentPath,
-          attachmentName,
-          scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-          recipients: {
-            create: validRecipients.map(r => ({
-              email: r.email.toLowerCase().trim(),
-              name: r.name || '',
-              variables: r,
-              status: 'pending'
-            }))
-          }
-        },
-        include: {
-          recipients: true
-        }
+    if (validRecipients.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'All recipients from the uploaded CSV are currently in the suppression list.'
       });
-      return createdCampaign;
+    }
+
+    // Create campaign and recipients atomically without restrictive interactive transaction timeout
+    const campaign = await prisma.campaign.create({
+      data: {
+        userId,
+        name,
+        subject,
+        body,
+        status,
+        totalRecipients: validRecipients.length,
+        attachmentPath,
+        attachmentName,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        recipients: {
+          create: validRecipients.map((r) => ({
+            email: r.email.toLowerCase().trim(),
+            name: r.name || '',
+            variables: r,
+            status: 'pending',
+          })),
+        },
+      },
+      include: {
+        recipients: true,
+      },
     });
 
-    // Push jobs to the email queue (only if sending now)
-    if (!scheduledAt) {
-      for (const recipient of campaign.recipients) {
-        await emailQueue.add(
-          'send-email',
-          {
-            campaignId: campaign.id,
-            recipientId: recipient.id,
-            email: recipient.email,
-            name: recipient.name,
-            subject,
-            body,
-            attachmentPath,
-            attachmentName,
-            variables: recipient.variables || {},
-            senderName,
-          },
-          {
-            attempts: parseInt(process.env.MAX_RETRIES) || 3,
-            backoff: { type: 'exponential', delay: parseInt(process.env.JOB_BACKOFF_DELAY) || 2000 },
-            removeOnComplete: false,
-            removeOnFail: false,
-          }
-        );
-      }
+    // Push jobs to the email queue in bulk (only if sending now)
+    if (!scheduledAt && campaign.recipients.length > 0) {
+      const jobs = campaign.recipients.map((recipient) => ({
+        name: 'send-email',
+        data: {
+          campaignId: campaign.id,
+          recipientId: recipient.id,
+          email: recipient.email,
+          name: recipient.name,
+          subject,
+          body,
+          attachmentPath,
+          attachmentName,
+          variables: recipient.variables || {},
+          senderName,
+        },
+        opts: {
+          attempts: parseInt(process.env.MAX_RETRIES) || 3,
+          backoff: { type: 'exponential', delay: parseInt(process.env.JOB_BACKOFF_DELAY) || 2000 },
+          removeOnComplete: false,
+          removeOnFail: false,
+        },
+      }));
+
+      await emailQueue.addBulk(jobs);
     }
 
     return res.status(201).json({
@@ -128,6 +133,12 @@ const createCampaign = async (req, res, next) => {
       campaign: { id: campaign.id, name, subject, status, totalRecipients: validRecipients.length },
     });
   } catch (error) {
+    if (csvFile && fs.existsSync(csvFile.path)) {
+      try { fs.unlinkSync(csvFile.path); } catch (_) {}
+    }
+    if (attachmentFile && fs.existsSync(attachmentFile.path)) {
+      try { fs.unlinkSync(attachmentFile.path); } catch (_) {}
+    }
     next(error);
   }
 };

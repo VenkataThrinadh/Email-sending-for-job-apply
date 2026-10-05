@@ -1,0 +1,167 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  admin
+  user
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  name       String     @db.VarChar(255)
+  email      String     @unique @db.VarChar(255)
+  password   String     @db.VarChar(255)
+  role       Role       @default(admin)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at")
+  campaigns  Campaign[]
+
+  @@map("users")
+}
+
+enum CampaignStatus {
+  draft
+  queued
+  sending
+  sent
+  paused
+  failed
+}
+
+model Campaign {
+  id              Int            @id @default(autoincrement())
+  userId          Int            @map("user_id")
+  name            String         @db.VarChar(255)
+  subject         String         @db.VarChar(500)
+  body            String         @db.LongText
+  status          CampaignStatus @default(draft)
+  totalRecipients Int            @default(0) @map("total_recipients")
+  sentCount       Int            @default(0) @map("sent_count")
+  failedCount     Int            @default(0) @map("failed_count")
+  openCount       Int            @default(0) @map("open_count")
+  attachmentPath  String?        @db.VarChar(500) @map("attachment_path")
+  attachmentName  String?        @db.VarChar(255) @map("attachment_name")
+  scheduledAt     DateTime?      @map("scheduled_at")
+  sentAt          DateTime?      @map("sent_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at")
+  
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipients      Recipient[]
+
+  @@map("campaigns")
+}
+
+enum RecipientStatus {
+  pending
+  sent
+  failed
+  bounced
+  complained
+  unsubscribed
+}
+
+model Recipient {
+  id          Int             @id @default(autoincrement())
+  campaignId  Int             @map("campaign_id")
+  email       String          @db.VarChar(255)
+  name        String?         @default("") @db.VarChar(255)
+  variables   Json?
+  status      RecipientStatus @default(pending)
+  sentAt      DateTime?       @map("sent_at")
+  openedAt    DateTime?       @map("opened_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  campaign    Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("recipients")
+}
+
+enum LogStatus {
+  sent
+  failed
+  bounced
+  complained
+  opened
+}
+
+enum BounceType {
+  hard
+  soft
+  none
+}
+
+model Log {
+  id              Int        @id @default(autoincrement())
+  campaignId      Int?       @map("campaign_id")
+  recipientId     Int?       @map("recipient_id")
+  email           String     @db.VarChar(255)
+  status          LogStatus
+  bounceType      BounceType @default(none) @map("bounce_type")
+  complaintReason String?    @db.VarChar(500) @map("complaint_reason")
+  domainUsed      String?    @db.VarChar(255) @map("domain_used")
+  errorMessage    String?    @db.Text @map("error_message")
+  metadata        Json?
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  @@map("logs")
+}
+
+enum DomainStatus {
+  active
+  warmup
+  inactive
+  blacklisted
+}
+
+model Domain {
+  id              Int          @id @default(autoincrement())
+  domain          String       @unique @db.VarChar(255)
+  ipAddress       String?      @db.VarChar(50) @map("ip_address")
+  status          DomainStatus @default(warmup)
+  reputationScore Int          @default(100) @map("reputation_score")
+  emailsSentToday Int          @default(0) @map("emails_sent_today")
+  dailyLimit      Int          @default(500) @map("daily_limit")
+  lastUsedAt      DateTime?    @map("last_used_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  @@map("domains")
+}
+
+enum SuppressionReason {
+  hard_bounce
+  soft_bounce
+  complaint
+  unsubscribe
+  manual
+}
+
+model SuppressionList {
+  id        Int               @id @default(autoincrement())
+  email     String            @unique @db.VarChar(255)
+  reason    SuppressionReason
+  addedAt   DateTime          @default(now()) @map("added_at")
+
+  @@map("suppression_list")
+}
+
+model EmailStat {
+  id              Int      @id @default(autoincrement())
+  statDate        DateTime @unique @db.Date @map("stat_date")
+  emailsSent      Int      @default(0) @map("emails_sent")
+  emailsDelivered Int      @default(0) @map("emails_delivered")
+  emailsFailed    Int      @default(0) @map("emails_failed")
+  emailsBounced   Int      @default(0) @map("emails_bounced")
+  emailsComplained Int     @default(0) @map("emails_complained")
+  emailsOpened    Int      @default(0) @map("emails_opened")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("email_stats")
+}

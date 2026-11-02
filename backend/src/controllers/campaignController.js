@@ -2,6 +2,7 @@
 const prisma = require('../lib/prisma');
 const { emailQueue } = require('../queue/emailQueue');
 const csvParser = require('../utils/csvParser');
+const { sendTestEmail } = require('../services/emailService');
 const fs = require('fs');
 const path = require('path');
 
@@ -207,7 +208,21 @@ const getCampaign = async (req, res, next) => {
       sent_at: r.sentAt
     }));
 
-    return res.status(200).json({ success: true, campaign, recipients: mappedRecipients });
+    const mappedCampaign = {
+      ...campaign,
+      total_recipients: campaign.totalRecipients,
+      sent_count: campaign.sentCount,
+      failed_count: campaign.failedCount,
+      open_count: campaign.openCount,
+      attachment_path: campaign.attachmentPath,
+      attachment_name: campaign.attachmentName,
+      scheduled_at: campaign.scheduledAt,
+      sent_at: campaign.sentAt,
+      created_at: campaign.createdAt,
+      updated_at: campaign.updatedAt,
+    };
+
+    return res.status(200).json({ success: true, campaign: mappedCampaign, recipients: mappedRecipients });
   } catch (error) {
     next(error);
   }
@@ -217,13 +232,56 @@ const getCampaign = async (req, res, next) => {
 const deleteCampaign = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    await prisma.campaign.deleteMany({
+    const campaign = await prisma.campaign.findFirst({
       where: { id, userId: req.user.id }
     });
+
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found.' });
+    }
+
+    // Safely remove attachment file from disk if exists
+    if (campaign.attachmentPath && fs.existsSync(campaign.attachmentPath)) {
+      try {
+        fs.unlinkSync(campaign.attachmentPath);
+      } catch (fileErr) {
+        console.warn('⚠️ Could not remove campaign attachment file:', fileErr.message);
+      }
+    }
+
+    await prisma.campaign.delete({
+      where: { id }
+    });
+
     return res.status(200).json({ success: true, message: 'Campaign deleted.' });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = { createCampaign, listCampaigns, getCampaign, deleteCampaign };
+// ─── POST /api/campaign/test-email ────────────────────────────────
+const sendTestEmailHandler = async (req, res, next) => {
+  try {
+    const { to, subject, body, variables = {} } = req.body;
+    if (!to) {
+      return res.status(400).json({ success: false, message: 'Recipient email address is required.' });
+    }
+
+    const userRecord = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const fromName = userRecord ? userRecord.name : undefined;
+
+    const result = await sendTestEmail(to, { subject, body }, variables, fromName);
+    return res.status(200).json({
+      success: true,
+      message: `Test email successfully sent to ${to}`,
+      messageId: result.messageId
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: `Failed to send test email: ${error.message}`
+    });
+  }
+};
+
+module.exports = { createCampaign, listCampaigns, getCampaign, deleteCampaign, sendTestEmailHandler };

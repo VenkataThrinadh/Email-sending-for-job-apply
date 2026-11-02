@@ -1,7 +1,11 @@
 // routes/webhook.js - Public webhook endpoint (no auth required)
 const express = require('express');
 const router = express.Router();
-const { handleEmailStatus } = require('../controllers/webhookController');
+const { handleEmailStatus, trackOpen } = require('../controllers/webhookController');
+
+// GET /api/webhook/open/:recipientId
+// Transparent 1x1 GIF tracking pixel
+router.get('/open/:recipientId', trackOpen);
 
 // POST /api/webhook/email-status
 // Public - no auth required for webhook providers

@@ -153,4 +153,69 @@ const handleEmailStatus = async (req, res, next) => {
   }
 };
 
-module.exports = { handleEmailStatus };
+// Transparent 1x1 GIF
+const PIXEL_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+
+// ─── GET /api/webhook/open/:recipientId ──────────────────────────
+const trackOpen = async (req, res) => {
+  try {
+    const recipientId = parseInt(req.params.recipientId);
+    if (recipientId && !isNaN(recipientId)) {
+      const recipient = await prisma.recipient.findUnique({
+        where: { id: recipientId },
+        select: { id: true, email: true, campaignId: true, openedAt: true }
+      });
+
+      if (recipient && !recipient.openedAt) {
+        const now = new Date();
+        const today = now.toISOString().slice(0, 10);
+
+        // Update recipient
+        await prisma.recipient.update({
+          where: { id: recipientId },
+          data: { openedAt: now }
+        });
+
+        // Update campaign open count
+        if (recipient.campaignId) {
+          await prisma.campaign.update({
+            where: { id: recipient.campaignId },
+            data: { openCount: { increment: 1 } }
+          }).catch(() => {});
+        }
+
+        // Update daily stats
+        await prisma.$executeRaw`
+          INSERT INTO email_stats (stat_date, emails_opened) VALUES (${today}, 1)
+          ON DUPLICATE KEY UPDATE emails_opened = emails_opened + 1
+        `.catch(() => {});
+
+        // Log opened event
+        await prisma.log.create({
+          data: {
+            campaignId: recipient.campaignId,
+            recipientId: recipient.id,
+            email: recipient.email,
+            status: 'opened'
+          }
+        }).catch(() => {});
+
+        console.log(`👁️ Recipient #${recipientId} (${recipient.email}) opened email`);
+      }
+    }
+  } catch (err) {
+    console.error('Error tracking open pixel:', err.message);
+  }
+
+  // Always return the 1x1 GIF with no-cache headers
+  res.writeHead(200, {
+    'Content-Type': 'image/gif',
+    'Content-Length': PIXEL_GIF.length,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  });
+  return res.end(PIXEL_GIF);
+};
+
+module.exports = { handleEmailStatus, trackOpen };

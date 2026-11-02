@@ -4,7 +4,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const os = require('os');
-const { createCampaign, listCampaigns, getCampaign, deleteCampaign } = require('../controllers/campaignController');
+const { createCampaign, listCampaigns, getCampaign, deleteCampaign, sendTestEmailHandler } = require('../controllers/campaignController');
 const { authMiddleware } = require('../middleware/auth');
 
 // Multer v2 compatible storage — use OS temp dir
@@ -24,6 +24,7 @@ const upload = multer({
 router.use(authMiddleware);
 
 router.post('/create', upload.fields([{ name: 'csv', maxCount: 1 }, { name: 'attachment', maxCount: 1 }]), createCampaign);
+router.post('/test-email', sendTestEmailHandler);
 router.get('/list', listCampaigns);
 router.get('/:id', getCampaign);
 router.delete('/:id', deleteCampaign);

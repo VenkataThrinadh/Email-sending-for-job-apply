@@ -15,12 +15,18 @@ const parseCSVFile = (filePath) => {
 
     const results = [];
     fs.createReadStream(filePath)
-      .pipe(csv({ trim: true }))
+      .pipe(csv({
+        trim: true,
+        mapHeaders: ({ header }) => header ? header.replace(/^\ufeff/, '').trim().toLowerCase() : ''
+      }))
       .on('data', (row) => {
         // Normalize keys to lowercase
         const normalized = {};
         for (const [key, value] of Object.entries(row)) {
-          normalized[key.toLowerCase().trim()] = value?.trim() || '';
+          const cleanKey = key.replace(/^\ufeff/, '').toLowerCase().trim();
+          if (cleanKey) {
+            normalized[cleanKey] = typeof value === 'string' ? value.trim() : (value || '');
+          }
         }
 
         // Must have email
@@ -42,11 +48,17 @@ const parseCSVString = (csvString) => {
     const results = [];
     const stream = Readable.from(csvString);
     stream
-      .pipe(csv({ trim: true }))
+      .pipe(csv({
+        trim: true,
+        mapHeaders: ({ header }) => header ? header.replace(/^\ufeff/, '').trim().toLowerCase() : ''
+      }))
       .on('data', (row) => {
         const normalized = {};
         for (const [key, value] of Object.entries(row)) {
-          normalized[key.toLowerCase().trim()] = value?.trim() || '';
+          const cleanKey = key.replace(/^\ufeff/, '').toLowerCase().trim();
+          if (cleanKey) {
+            normalized[cleanKey] = typeof value === 'string' ? value.trim() : (value || '');
+          }
         }
         if (!normalized.email || !isValidEmail(normalized.email)) return;
         results.push(normalized);

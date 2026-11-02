@@ -53,10 +53,15 @@ export default function Personalization() {
     if (!testEmail) { toast.error('Enter a test email address'); return }
     setSending(true)
     try {
-      await api.post('/auth/me') // just test auth; real send uses campaign
-      toast.success(`Test email preview sent to ${testEmail} (configure SMTP in .env to enable)`)
-    } catch {
-      toast.error('Please configure SMTP settings in backend .env to send test emails')
+      const { data } = await api.post('/campaign/test-email', {
+        to: testEmail,
+        subject: template.subject,
+        body: template.body,
+        variables: dataObj
+      })
+      toast.success(data.message || `Test email sent to ${testEmail}`)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send test email. Check SMTP settings.')
     } finally { setSending(false) }
   }
 

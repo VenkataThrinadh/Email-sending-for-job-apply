@@ -161,8 +161,11 @@ export default function Reputation() {
                   <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v?.slice(5)} />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => {
+                if (!v) return '';
+                const s = typeof v === 'string' ? v : new Date(v).toISOString();
+                return s.slice(5, 10);
+              }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
               <Legend />

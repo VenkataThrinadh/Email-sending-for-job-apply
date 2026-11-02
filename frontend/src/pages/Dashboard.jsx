@@ -93,8 +93,11 @@ export default function Dashboard() {
           </h3>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={dailyStats} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:[&>line]:stroke-slate-800" />
-              <XAxis dataKey="stat_date" tick={{ fontSize: 10 }} tickFormatter={(v) => v?.slice(5)} />
+              <XAxis dataKey="stat_date" tick={{ fontSize: 10 }} tickFormatter={(v) => {
+                if (!v) return '';
+                const s = typeof v === 'string' ? v : new Date(v).toISOString();
+                return s.slice(5, 10);
+              }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,.12)' }} />
               <Legend />

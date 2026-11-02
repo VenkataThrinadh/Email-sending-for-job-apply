@@ -77,11 +77,20 @@ export default function CampaignDetail() {
 
   if (!campaign) return null
 
-  // Delivery rate
-  const total     = campaign.total_recipients || 1
-  const deliverPct = Math.round((campaign.sent_count / total) * 100)
-  const failPct    = Math.round((campaign.failed_count / total) * 100)
-  const openPct    = Math.round(((campaign.open_count || 0) / total) * 100)
+  // Delivery rate & metrics with dual snake_case / camelCase support
+  const total = campaign.total_recipients || campaign.totalRecipients || 1
+  const sentCount = campaign.sent_count ?? campaign.sentCount ?? 0
+  const failedCount = campaign.failed_count ?? campaign.failedCount ?? 0
+  const openCount = campaign.open_count ?? campaign.openCount ?? 0
+
+  const deliverPct = Math.round((sentCount / total) * 100) || 0
+  const failPct    = Math.round((failedCount / total) * 100) || 0
+  const openPct    = Math.round((openCount / total) * 100) || 0
+
+  const createdAt = campaign.created_at || campaign.createdAt
+  const scheduledAt = campaign.scheduled_at || campaign.scheduledAt
+  const sentAt = campaign.sent_at || campaign.sentAt
+  const attachmentName = campaign.attachment_name || campaign.attachmentName
 
   // Filter recipients
   const filtered = filterStatus === 'all'
@@ -117,10 +126,10 @@ export default function CampaignDetail() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatBox label="Total Recipients" value={(campaign.total_recipients || 0).toLocaleString()} color="bg-brand-600"   icon={Users}       />
-        <StatBox label="Sent"             value={(campaign.sent_count     || 0).toLocaleString()} color="bg-emerald-500" icon={CheckCircle}  />
-        <StatBox label="Failed"           value={(campaign.failed_count   || 0).toLocaleString()} color="bg-red-500"     icon={XCircle}      />
-        <StatBox label="Opens"            value={(campaign.open_count     || 0).toLocaleString()} color="bg-violet-500"  icon={TrendingUp}   />
+        <StatBox label="Total Recipients" value={Number(total).toLocaleString()} color="bg-brand-600"   icon={Users}       />
+        <StatBox label="Sent"             value={Number(sentCount).toLocaleString()} color="bg-emerald-500" icon={CheckCircle}  />
+        <StatBox label="Failed"           value={Number(failedCount).toLocaleString()} color="bg-red-500"     icon={XCircle}      />
+        <StatBox label="Opens"            value={Number(openCount).toLocaleString()} color="bg-violet-500"  icon={TrendingUp}   />
       </div>
 
       {/* Progress bars */}
@@ -153,12 +162,12 @@ export default function CampaignDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
           {[
             { icon: Mail,     label: 'Subject',      value: campaign.subject },
-            { icon: Calendar, label: 'Created',       value: new Date(campaign.created_at).toLocaleString() },
-            { icon: Calendar, label: 'Scheduled For', value: campaign.scheduled_at ? new Date(campaign.scheduled_at).toLocaleString() : 'Immediately' },
-            { icon: Calendar, label: 'Sent At',       value: campaign.sent_at ? new Date(campaign.sent_at).toLocaleString() : '—' },
+            { icon: Calendar, label: 'Created',       value: createdAt ? new Date(createdAt).toLocaleString() : '—' },
+            { icon: Calendar, label: 'Scheduled For', value: scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Immediately' },
+            { icon: Calendar, label: 'Sent At',       value: sentAt ? new Date(sentAt).toLocaleString() : '—' },
             { icon: Users,    label: 'Campaign ID',   value: `#${campaign.id}` },
             { icon: TrendingUp, label: 'Open Rate',   value: `${openPct}%` },
-            ...(campaign.attachment_name ? [{ icon: Paperclip, label: 'Attachment', value: campaign.attachment_name }] : [])
+            ...(attachmentName ? [{ icon: Paperclip, label: 'Attachment', value: attachmentName }] : [])
           ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="flex items-start gap-3">
               <Icon className="w-4 h-4 text-brand-500 mt-0.5 flex-shrink-0" />

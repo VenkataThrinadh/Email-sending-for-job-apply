@@ -5,6 +5,7 @@ import { Upload, Send, Calendar, Loader2, X, FileText, Eye } from 'lucide-react'
 import api from '../services/axios'
 import toast from 'react-hot-toast'
 import { personalize } from '../utils/personalize'
+import Papa from 'papaparse'
 
 const SAMPLE_TEMPLATE = `<div style="font-family:Inter,sans-serif;max-width:600px;margin:auto;padding:32px;background:#ffffff;">
   <h2 style="color:#4f46e5;margin-bottom:16px;">Hi {{name}} 👋</h2>
@@ -42,17 +43,21 @@ export default function CreateCampaign() {
     const file = e.target.files[0]
     if (!file) return
     setCsvFile(file)
-    // Preview first 5 rows
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const lines = ev.target.result.split('\n').slice(0, 6)
-      const headers = lines[0]?.split(',').map((h) => h.trim())
-      const rows = lines.slice(1).filter(Boolean).map((l) =>
-        Object.fromEntries(l.split(',').map((v, i) => [headers[i], v.trim()]))
-      )
-      setCsvPreview(rows)
-    }
-    reader.readAsText(file)
+    // Preview first 5 rows with Papa.parse
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      preview: 5,
+      transformHeader: (h) => (h ? h.replace(/^\ufeff/, '').trim().toLowerCase() : ''),
+      complete: (results) => {
+        if (results && results.data) {
+          setCsvPreview(results.data)
+        }
+      },
+      error: (err) => {
+        toast.error('Could not preview CSV: ' + err.message)
+      }
+    })
   }
 
   const handleAttachment = (e) => {

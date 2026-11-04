@@ -9,15 +9,21 @@ const baseURL = import.meta.env.VITE_API_URL
 
 const api = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 90000, // 90s to accommodate Render free-tier cold starts
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach JWT token to every request
+// Attach JWT token to every request & handle FormData content-type cleanly
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
     if (token) config.headers.Authorization = `Bearer ${token}`
+    
+    // When sending FormData, remove Content-Type so browser sets multipart/form-data with proper boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+
     return config
   },
   (error) => Promise.reject(error)

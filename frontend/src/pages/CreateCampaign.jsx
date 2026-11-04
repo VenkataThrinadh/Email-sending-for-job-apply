@@ -78,13 +78,17 @@ export default function CreateCampaign() {
       fd.append('csv', csvFile)
       if (attachmentFile) fd.append('attachment', attachmentFile)
 
-      const { data } = await api.post('/campaign/create', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const { data } = await api.post('/campaign/create', fd)
       toast.success(data.message)
       navigate('/campaigns')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create campaign')
+      const errorMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        (err.code === 'ECONNABORTED' ? 'Request timed out. The server may still be processing or waking up.' : null) ||
+        err.message ||
+        'Failed to create campaign'
+      toast.error(errorMsg)
     } finally {
       setLoading(false)
     }

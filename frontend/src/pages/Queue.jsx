@@ -146,7 +146,13 @@ export default function Queue() {
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>Email</th><th>Campaign</th><th>Status</th><th>Sent At</th></tr>
+                <tr>
+                  <th>Email</th>
+                  <th>Campaign</th>
+                  <th>Status</th>
+                  <th>Error / Reason</th>
+                  <th>Sent At</th>
+                </tr>
               </thead>
               <tbody>
                 {jobs.map((j, i) => (
@@ -154,6 +160,9 @@ export default function Queue() {
                     <td className="font-medium">{j.email}</td>
                     <td className="text-slate-500 dark:text-slate-400">{j.campaign_name || j.campaignId || '—'}</td>
                     <td>{statusBadge(j.bullState || j.status)}</td>
+                    <td className="text-xs max-w-xs truncate text-red-500 dark:text-red-400" title={j.error_message || j.failedReason || ''}>
+                      {j.error_message || j.failedReason || (j.status === 'failed' ? 'Sending failed' : '—')}
+                    </td>
                     <td className="text-xs text-slate-400">{j.sent_at ? new Date(j.sent_at).toLocaleString() : '—'}</td>
                   </tr>
                 ))}

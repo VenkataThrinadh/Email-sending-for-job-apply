@@ -58,7 +58,15 @@ const createCampaign = async (req, res, next) => {
       attachmentPath = newPath;
     }
 
-    const status = scheduledAt ? 'draft' : 'queued';
+    let parsedScheduledAt = null;
+    if (scheduledAt && scheduledAt !== 'null' && scheduledAt !== 'undefined' && scheduledAt !== '') {
+      const d = new Date(scheduledAt);
+      if (!isNaN(d.getTime())) {
+        parsedScheduledAt = d;
+      }
+    }
+
+    const status = parsedScheduledAt ? 'draft' : 'queued';
     
     // Check suppression list
     const suppressedRows = await prisma.suppressionList.findMany({
@@ -86,7 +94,7 @@ const createCampaign = async (req, res, next) => {
         totalRecipients: validRecipients.length,
         attachmentPath,
         attachmentName,
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        scheduledAt: parsedScheduledAt,
         recipients: {
           create: validRecipients.map((r) => ({
             email: r.email.toLowerCase().trim(),
@@ -102,7 +110,7 @@ const createCampaign = async (req, res, next) => {
     });
 
     // Push jobs to the email queue in bulk (only if sending now)
-    if (!scheduledAt && campaign.recipients.length > 0) {
+    if (!parsedScheduledAt && campaign.recipients.length > 0) {
       const jobs = campaign.recipients.map((recipient) => ({
         name: 'send-email',
         data: {

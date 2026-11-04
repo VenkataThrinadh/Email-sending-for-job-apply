@@ -18,12 +18,42 @@ const webhookRoutes = require('./routes/webhook');
 const app = express();
 
 // ─── CORS ─────────────────────────────────────────────────────────
-app.use(cors({
-  origin: [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:3000'],
+const rawAllowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://email-sending-for-job-apply.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:4173',
+].filter(Boolean);
+
+const allowedOrigins = rawAllowedOrigins
+  .flatMap((url) => url.split(',').map((u) => u.trim()))
+  .map((url) => url.replace(/\/+$/, '').toLowerCase());
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/+$/, '').toLowerCase();
+  if (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes('*')) return true;
+  if (cleanOrigin.endsWith('.vercel.app')) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) return true;
+  return true;
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    callback(null, isOriginAllowed(origin));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // ─── Body Parsers ─────────────────────────────────────────────────
 // Webhook routes need raw body for signature verification

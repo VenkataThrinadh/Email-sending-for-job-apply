@@ -3,6 +3,10 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const authMiddleware = (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   try {
     // Extract token from Authorization header: "Bearer <token>"
     const authHeader = req.headers.authorization;

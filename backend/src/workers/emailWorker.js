@@ -108,12 +108,16 @@ const processEmailJob = async (job) => {
 
     const domainName = domain?.domain || null;
     const senderEmail = domain?.smtpUser || domain?.domain || process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
-    const smtpConfig = (domain?.smtpUser && domain?.smtpPass) ? {
-      host: domain.smtpHost || 'smtp.gmail.com',
-      port: domain.smtpPort || 587,
-      user: domain.smtpUser,
-      pass: domain.smtpPass
-    } : null;
+    const rawPass = domain?.smtpPass || process.env.SMTP_PASS || '';
+    const cleanPass = rawPass.trim().replace(/\s+/g, '');
+    const activeUser = domain?.smtpUser || process.env.SMTP_USER;
+
+    const smtpConfig = {
+      host: domain?.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(domain?.smtpPort || process.env.SMTP_PORT) || 587,
+      user: activeUser,
+      pass: cleanPass || undefined
+    };
 
     // Send the email with the rotated SMTP account
     const result = await sendEmail({

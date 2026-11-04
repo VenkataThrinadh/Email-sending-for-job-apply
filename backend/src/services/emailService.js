@@ -4,14 +4,16 @@ require('dotenv').config();
 
 // Create reusable transporter
 const createTransporter = (smtpConfig = {}) => {
+  const user = (smtpConfig.user || process.env.SMTP_USER || '').trim();
+  const rawPass = (smtpConfig.pass || process.env.SMTP_PASS || '').trim();
+  // Strip all whitespace from Gmail App Password (e.g. "rcna mkga mmlx ltsq" -> "rcnamkgammlxltsq")
+  const pass = rawPass.replace(/\s+/g, '');
+
   return nodemailer.createTransport({
     host: smtpConfig.host || process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(smtpConfig.port || process.env.SMTP_PORT) || 587,
     secure: (smtpConfig.secure || process.env.SMTP_SECURE) === 'true',
-    auth: {
-      user: smtpConfig.user || process.env.SMTP_USER,
-      pass: smtpConfig.pass || process.env.SMTP_PASS,
-    },
+    auth: (user && pass) ? { user, pass } : undefined,
     tls: { rejectUnauthorized: false },
     pool: true,           // Use connection pooling
     maxConnections: 5,

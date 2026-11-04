@@ -94,13 +94,19 @@ const startServer = async () => {
     const primaryEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
     if (primaryEmail) {
       const cleanEmail = primaryEmail.toLowerCase().trim();
+      const cleanPass = process.env.SMTP_PASS ? process.env.SMTP_PASS.trim().replace(/\s+/g, '') : null;
       await prisma.domain.upsert({
         where: { domain: cleanEmail },
-        update: {},
+        update: {
+          ...(cleanPass ? { smtpPass: cleanPass } : {}),
+          smtpUser: cleanEmail,
+          smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+          smtpPort: parseInt(process.env.SMTP_PORT) || 587,
+        },
         create: {
           domain: cleanEmail,
           smtpUser: cleanEmail,
-          smtpPass: process.env.SMTP_PASS || null,
+          smtpPass: cleanPass,
           smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
           smtpPort: parseInt(process.env.SMTP_PORT) || 587,
           status: 'active',

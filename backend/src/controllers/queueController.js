@@ -7,9 +7,10 @@ const getQueueStatus = async (req, res, next) => {
   try {
     const stats = await getQueueStats();
 
-    // Also get recent recipient statuses from DB
+    // Also get recent recipient statuses from DB along with their error messages
     const recentJobs = await prisma.$queryRaw`
-       SELECT r.id, r.email, r.name, r.status, r.sent_at, c.name as campaign_name
+       SELECT r.id, r.email, r.name, r.status, r.sent_at, c.name as campaign_name,
+              (SELECT l.error_message FROM logs l WHERE l.recipient_id = r.id ORDER BY l.id DESC LIMIT 1) as error_message
        FROM recipients r
        LEFT JOIN campaigns c ON r.campaign_id = c.id
        ORDER BY r.id DESC LIMIT 50
@@ -62,15 +63,15 @@ const getJobs = async (req, res, next) => {
     const { type = 'all' } = req.query;
     let jobs = [];
     if (type === 'failed' || type === 'all') {
-      const failed = await emailQueue.getFailed(0, 20);
-      jobs.push(...failed.map((j) => ({ ...j.data, bullState: 'failed', failedReason: j.failedReason })));
+      const failed = await emailQueue.getFailed(0, 50);
+      jobs.push(...failed.map((j) => ({ ...j.data, bullState: 'failed', failedReason: j.failedReason, error_message: j.failedReason })));
     }
     if (type === 'active' || type === 'all') {
-      const active = await emailQueue.getActive(0, 20);
+      const active = await emailQueue.getActive(0, 50);
       jobs.push(...active.map((j) => ({ ...j.data, bullState: 'active' })));
     }
     if (type === 'waiting' || type === 'all') {
-      const waiting = await emailQueue.getWaiting(0, 20);
+      const waiting = await emailQueue.getWaiting(0, 50);
       jobs.push(...waiting.map((j) => ({ ...j.data, bullState: 'waiting' })));
     }
     return res.status(200).json({ success: true, jobs });
